@@ -1,10 +1,9 @@
-import pygame
-import time
-import math
+import pygame, time, math, os
 from pygame.math import Vector2
 from util import scale_img, blit_rotate_center
 
 pygame.init()
+pygame.mixer.init()
 
 GRASS = scale_img(pygame.image.load("img/grass.jpg"), 2.5)
 TRACK = scale_img(pygame.image.load("img/track.png"), 0.9)
@@ -15,11 +14,21 @@ CAR = scale_img(pygame.image.load("img/red-car.png"), 0.55)
 
 ZOOM = 1.5
 WIDTH = 900
-HEIGHT = 900
+HEIGHT = 500
 
 font = pygame.font.SysFont("Arial", 28)
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Speed Racist")
+
+GEAR_DOWN_PATH = os.path.join('sounds', 'gear_down.mp3')
+GEAR_UP_PATH = os.path.join('sounds', 'gear_up.mp3')
+ACCELERATE_PATH = os.path.join('sounds', 'accelerating.mp3')
+IDLE_PATH = os.path.join('sounds', 'idle.mp3')
+
+gear_down_sound = pygame.mixer.Sound(GEAR_DOWN_PATH)
+gear_up_sound = pygame.mixer.Sound(GEAR_UP_PATH)
+accelerate_sound = pygame.mixer.Sound(ACCELERATE_PATH)
+idle_sound = pygame.mixer.Sound(IDLE_PATH)
 
 class AbstractCar:
     def __init__(self, max_vel, rotation_vel):
@@ -30,28 +39,62 @@ class AbstractCar:
         self.angle = 0
         self.x, self.y = self.START_POS
         self.acceleration = 0.1
+        self.engine_state = "idle"
 
         self.gear = 1
         self.gear_ratio = {1 : 0.25, 2 : 0.45, 3 : 0.65, 4 : 0.85, 5 : 1.0}
+        self.gear_sound_dict = { "idle": idle_sound, "driving": accelerate_sound }
+
+        self.rpm = self.vel / self.max_vel
+
+        self.engine_channel = pygame.mixer.Channel(0)
+        self.current_sound = None
+
+    def car_sound(self, sound):
+        if not self.engine_channel.get_busy():
+            self.engine_channel.play(sound, loops=-1)
+
+        if self.gear == 1 or self.gear == 0:
+            self.engine_channel.set_volume(0.2)
+        elif self.gear == 2:
+            self.engine_channel.set_volume(0.4)
+        elif self.gear == 3:
+            self.engine_channel.set_volume(0.6)
+        elif self.gear == 4:
+            self.engine_channel.set_volume(0.8)
+        else:
+            self.engine_channel.set_volume(1)
+
+    def car_gear(self, new_gear, sound):
+        if self.gear != new_gear:
+            self.gear = new_gear
+            pygame.mixer.Channel(1).play(sound)
 
     def gear_up(self):
         if self.gear < len(self.gear_ratio):
-            self.gear += 1
+            self.car_gear(self.gear + 1, gear_up_sound)
 
     def gear_down(self):
         if self.gear > 1:
-            self.gear -= 1
-            
+            self.car_gear(self.gear - 1, gear_down_sound)
+
+    def update_sound(self):
+        current_sound = self.gear_sound_dict[self.engine_state]
+        if self.current_sound != current_sound:
+            self.engine_channel.stop()
+            self.current_sound = current_sound
+            self.car_sound(self.current_sound)
 
     def gear_max(self):
         return self.max_vel * self.gear_ratio[self.gear]
-
 
     def move_forward(self):
         gear_vel = self.gear_max()
         
         gear_accel = self.acceleration * (0.5 + self.gear * 0.2)
         self.vel = min(self.vel + gear_accel, gear_vel)
+
+        self.engine_state = "driving"
         self.move()
 
     def move(self):
@@ -70,6 +113,8 @@ class AbstractCar:
 
     def reduce_speed(self):
         self.vel = max(self.vel - self.acceleration / 2, 0)
+        if self.vel == 0:
+            self.engine_state = "idle"
         self.move()
 
     def draw(self, screen, camera_offset):
@@ -110,6 +155,8 @@ def draw(screen, images, player_car):
     screen.blit(gear_text, (10, 10))
     screen.blit(speed_text, (10, 40))
 
+    player_car.update_sound()
+
     pygame.display.update()
 
 running = True
@@ -144,7 +191,6 @@ while running:
         player_car.rotate(left=True)
     if keys[pygame.K_d]:
         player_car.rotate(right=True)
-
     
     if not moved:
         player_car.reduce_speed()
