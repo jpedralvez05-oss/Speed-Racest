@@ -39,6 +39,8 @@ class AbstractCar:
         self.img = self.IMG
         self.max_vel = max_vel
         self.vel = 0
+        self.vel_drift = Vector2(0, 0)
+        self.grip = 0.06
         self.rotation_vel = rotation_vel
         self.angle = 0
         self.x, self.y = self.START_POS
@@ -134,11 +136,16 @@ class AbstractCar:
 
     def move(self):
         radians = math.radians(self.angle)
-        vertical = math.cos(radians) * self.vel
-        horizontal = math.sin(radians) * self.vel
 
-        self.y -= vertical
-        self.x -= horizontal
+        direction_x = math.sin(radians)
+        direction_y = math.cos(radians)
+
+        target_velocity = Vector2(
+            direction_x * self.vel, direction_y * self.vel)
+        self.vel_drift = self.vel_drift.lerp(target_velocity, self.grip)
+
+        self.y -= self.vel_drift.y
+        self.x -= self.vel_drift.x
 
         limit_move_x = TRACK.get_width() - self.img.get_width()
         limit_move_y = TRACK.get_height() - self.img.get_height()
@@ -148,6 +155,7 @@ class AbstractCar:
 
         if self.x == 0 or self.x == limit_move_x or self.y == 0 or self.y == limit_move_y:
             self.vel = 0
+            self.vel_drift = Vector2(0, 0)
 
     def rotate(self, left=False, right=False):
         if left:
