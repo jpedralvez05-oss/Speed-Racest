@@ -17,7 +17,7 @@ CAR = scale_img(pygame.image.load("img/red-car.png"), 0.55)
 
 ZOOM = 1.5
 WIDTH = 900
-HEIGHT = 800
+HEIGHT = 500
 
 font = pygame.font.SysFont("Arial", 28)
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -25,13 +25,23 @@ pygame.display.set_caption("Speed Racist")
 
 GEAR_DOWN_PATH = os.path.join('sounds', 'gear_down.mp3')
 GEAR_UP_PATH = os.path.join('sounds', 'gear_up.mp3')
-ACCELERATE_PATH = os.path.join('sounds', 'accelerating.mp3')
 IDLE_PATH = os.path.join('sounds', 'idle.mp3')
+
+first_gear_sound = os.path.join('sounds/accelerate', 'first_gear.mp3')
+second_gear_sound = os.path.join('sounds/accelerate', 'second_gear.mp3')
+third_gear_sound = os.path.join('sounds/accelerate', 'third_gear.mp3')
+fourth_gear_sound = os.path.join('sounds/accelerate', 'fourth_gear.mp3')
+fifth_gear_sound = os.path.join('sounds/accelerate', 'fifth_gear.mp3')
 
 gear_down_sound = pygame.mixer.Sound(GEAR_DOWN_PATH)
 gear_up_sound = pygame.mixer.Sound(GEAR_UP_PATH)
-accelerate_sound = pygame.mixer.Sound(ACCELERATE_PATH)
 idle_sound = pygame.mixer.Sound(IDLE_PATH)
+
+first_gear_play = pygame.mixer.Sound(first_gear_sound)
+second_gear_play = pygame.mixer.Sound(second_gear_sound)
+third_gear_play = pygame.mixer.Sound(third_gear_sound)
+fourth_gear_play = pygame.mixer.Sound(fourth_gear_sound)
+fifth_gear_play = pygame.mixer.Sound(fifth_gear_sound)
 
 
 class AbstractCar:
@@ -52,25 +62,46 @@ class AbstractCar:
                            2: 0.45, 3: 0.65, 4: 0.85, 5: 1.0}
 
         self.gear_sound_dict = {
-            "idle": idle_sound, "driving": accelerate_sound}
+            "idle": idle_sound, "driving": [
+                first_gear_play,
+                second_gear_play,
+                third_gear_play,
+                fourth_gear_play,
+                fifth_gear_play
+            ]}
         self.rpm = self.vel / self.max_vel
         self.engine_channel = pygame.mixer.Channel(0)
         self.current_sound = None
 
     def car_sound(self, sound):
+        if self.current_sound != sound:
+            self.engine_channel.stop()
+            self.current_sound = sound
+
         if not self.engine_channel.get_busy():
             self.engine_channel.play(sound, loops=-1)
 
+    def get_driving_sound_and_volume(self):
+        gear_to_be_played = self.gear_sound_dict["driving"]
+
         if self.gear in [-1, 0, 1]:
-            self.engine_channel.set_volume(0.2)
+            index = 0
+            volume = 0.2
         elif self.gear == 2:
-            self.engine_channel.set_volume(0.4)
+            index = 1
+            volume = 0.4
         elif self.gear == 3:
-            self.engine_channel.set_volume(0.6)
+            index = 2
+            volume = 0.6
         elif self.gear == 4:
-            self.engine_channel.set_volume(0.8)
+            index = 3
+            volume = 0.8
         else:
-            self.engine_channel.set_volume(1)
+            index = 4
+            volume = 1.0
+
+        index = max(0, min(index, len(gear_to_be_played) - 1))
+        return gear_to_be_played[index], volume
 
     def car_gear(self, new_gear, sound):
         if self.gear != new_gear:
@@ -86,11 +117,20 @@ class AbstractCar:
             self.car_gear(self.gear - 1, gear_down_sound)
 
     def update_sound(self):
-        current_sound = self.gear_sound_dict[self.engine_state]
-        if self.current_sound != current_sound:
+        if self.engine_state == "idle":
+            target_sound = self.gear_sound_dict["idle"]
+            target_volume = 0.2
+        else:
+            target_sound, target_volume = self.get_driving_sound_and_volume()
+
+        if self.current_sound != target_sound:
             self.engine_channel.stop()
-            self.current_sound = current_sound
-            self.car_sound(self.current_sound)
+            self.current_sound = target_sound
+
+        self.engine_channel.set_volume(target_volume)
+
+        if not self.engine_channel.get_busy():
+            self.engine_channel.play(target_sound, loops=-1)
 
     def gear_max(self):
         return self.max_vel * self.gear_ratio[self.gear]
