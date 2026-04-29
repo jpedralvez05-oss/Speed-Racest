@@ -312,7 +312,7 @@ while running:
 
     if keys[pygame.K_w]:
         moved = True
-        player_car.neutral_gear()
+        player_car.drive_gear()
     if keys[pygame.K_s]:
         moved = True
         player_car.brake()
