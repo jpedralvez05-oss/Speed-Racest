@@ -57,7 +57,6 @@ class AbstractCar:
         self.acceleration = 0.1
         self.engine_state = "idle"
         self.rpm = 0                #self.rpm = self.vel / self.max_vel, replaced stale code with new rpm system
-                                    #redline basically means the max that the rpm goes, so rpm_max also works but this makes more sense.
         self.rpm_redline = 0.9      #This is where the redline starts for the rpm ratio, basically the redline is line where the gear will start sustaining damage if redlined for too long
         self.rpm_min = 0.2          #The rpm's idle position
 
@@ -138,7 +137,7 @@ class AbstractCar:
     def gear_max(self):
         return self.max_vel * self.gear_ratio[self.gear]
 
-    def rpm_update(self):   #This is the new rpm system which collaborates with the gear system affecting the acceleration and velocity
+    def rpm_update(self):  
         target_vel = self.gear_max()
         if target_vel > 0:
             self.rpm = self.rpm_min + (abs(self.vel) / target_vel) * (1.0 - self.rpm_min)
@@ -163,27 +162,33 @@ class AbstractCar:
         target_vel = self.gear_max()
         self.engine_state = "driving"
 
-        if self.gear > 0:
+        if self.gear > 0: #Added new elif statement to make downshift slowly reduce speed to previous limit instead of snapping back
             if self.vel < 0:
                 self.vel = min(self.vel + self.acceleration * 2, 0)
-            else:
+            elif self.vel < target_vel:
                 gear_accel = self.acceleration * (0.5 + self.gear * 0.2)
                 #Tapers acceleration when nearing velocity, makes it slightly more realistic
                 speed_ratio = 1 - (self.vel / target_vel) if target_vel > 0 else 0
-                self.vel = min(self.vel + gear_accel * speed_ratio * self.rpm_torque(), target_vel) #Now includes speed_ratio and rpm_torque
+                self.vel = min(self.vel + gear_accel * speed_ratio * self.rpm_torque(), target_vel)
+            else:
+                self.vel = max(self.vel - self.acceleration * 0.5, target_vel)
+
         elif self.gear == -1:
             if self.vel > 0:
                 self.vel = max(self.vel - self.acceleration * 2, 0)
-            else:
+            elif abs(self.vel) < target_vel:
                 gear_accel = self.acceleration * 0.5
                 speed_ratio = 1 - (abs(self.vel) / target_vel) if target_vel > 0 else 0
                 self.vel = max(self.vel - gear_accel * speed_ratio * self.rpm_torque(), -target_vel)
+            else:
+                self.vel = min(self.vel + self.acceleration * 0.5, -target_vel)
+                
 
         self.move()
 
-    def brake(self):    #changed breaking physics to be more responsive
+    def brake(self):
         self.engine_state = "idle"
-        brake_force = self.max_vel * 0.08 #replaced self_accceleration * 3 to not break the brakes when changing the values for acceleration. This makes braking an independent force.
+        brake_force = self.max_vel * 0.02
 
         if self.vel > 0:
             self.vel = max(self.vel - brake_force, 0)
@@ -310,7 +315,7 @@ while running:
     keys = pygame.key.get_pressed()
     moved = False
 
-    if keys[pygame.K_w]:
+    if keys[pygame.K_w] and not keys[pygame.K_s]: #Not operator ensures when holding Gas and Break don't call move() twice, which caused a sudden jump in speed before breaking
         moved = True
         player_car.drive_gear()
     if keys[pygame.K_s]:
