@@ -56,6 +56,10 @@ class AbstractCar:
         self.x, self.y = self.START_POS
         self.acceleration = 0.1
         self.engine_state = "idle"
+        self.rpm = 0                #self.rpm = self.vel / self.max_vel, replaced stale code with new rpm system
+                                    #redline basically means the max that the rpm goes, so rpm_max also works but this makes more sense.
+        self.rpm_redline = 0.9      #This is where the redline starts for the rpm ratio, basically the redline is line where the gear will start sustaining damage if redlined for too long
+        self.rpm_min = 0.2          #The rpm's idle position
 
         self.gear = 1
         self.gear_ratio = {-1: 0.25, 0: 0.0, 1: 0.25,
@@ -69,7 +73,6 @@ class AbstractCar:
                 fourth_gear_play,
                 fifth_gear_play
             ]}
-        self.rpm = self.vel / self.max_vel
         self.engine_channel = pygame.mixer.Channel(0)
         self.current_sound = None
 
@@ -135,7 +138,23 @@ class AbstractCar:
     def gear_max(self):
         return self.max_vel * self.gear_ratio[self.gear]
 
-    def neutral_gear(self):
+    def rpm_update(self):   #This is the new rpm system which collaborates with the gear system affecting the acceleration and velocity
+        target_vel = self.gear_max()
+        if target_vel > 0:
+            self.rpm = self.rpm_min + (abs(self.vel) / target_vel) * (1.0 - self.rpm_min)
+        else:
+            self.rpm = self.rpm_min #This is for neutral
+        self.rpm = max(self.rpm_min, min(self.rpm, 1.0))
+
+    def rpm_torque(self):
+        if self.rpm < 0.4:
+            return 0.6 #low rpm
+        elif self.rpm < self.rpm_redline:
+            return 1.0 #max rpm
+        else:
+            return 0.7 #redline, power falls off
+
+    def drive_gear(self):   #renamed function from neutral_gear to drive_gear, makes more sense since it handles all the gears from reverse to fifth.
         if self.gear == 0:
             self.reduce_speed()
             self.engine_state = "idle"
@@ -149,30 +168,30 @@ class AbstractCar:
                 self.vel = min(self.vel + self.acceleration * 2, 0)
             else:
                 gear_accel = self.acceleration * (0.5 + self.gear * 0.2)
-                self.vel = min(self.vel + gear_accel, target_vel)
+                #Tapers acceleration when nearing velocity, makes it slightly more realistic
+                speed_ratio = 1 - (self.vel / target_vel) if target_vel > 0 else 0
+                self.vel = min(self.vel + gear_accel * speed_ratio * self.rpm_torque(), target_vel) #Now includes speed_ratio and rpm_torque
         elif self.gear == -1:
             if self.vel > 0:
                 self.vel = max(self.vel - self.acceleration * 2, 0)
             else:
                 gear_accel = self.acceleration * 0.5
-                self.vel = max(self.vel - gear_accel, -target_vel)
+                speed_ratio = 1 - (abs(self.vel) / target_vel) if target_vel > 0 else 0
+                self.vel = max(self.vel - gear_accel * speed_ratio * self.rpm_torque(), -target_vel)
 
         self.move()
 
-    def brake(self):
+    def brake(self):    #changed breaking physics to be more responsive
         self.engine_state = "idle"
+        brake_force = self.max_vel * 0.08 #replaced self_accceleration * 3 to not break the brakes when changing the values for acceleration. This makes braking an independent force.
+
         if self.vel > 0:
-            self.vel = max(self.vel - self.acceleration * 3, 0)
+            self.vel = max(self.vel - brake_force, 0)
         elif self.vel < 0:
-            self.vel = min(self.vel + self.acceleration * 3, 0)
+            self.vel = min(self.vel + brake_force, 0)
         self.move()
 
-    def move_forward(self):
-        gear_vel = self.gear_max()
-        gear_accel = self.acceleration * (0.5 + self.gear * 0.2)
-        self.vel = min(self.vel + gear_accel, gear_vel)
-        self.engine_state = "driving"
-        self.move()
+    #Removed move_forward since it is dead code.
 
     def move(self):
         radians = math.radians(self.angle)
@@ -196,6 +215,8 @@ class AbstractCar:
         if self.x == 0 or self.x == limit_move_x or self.y == 0 or self.y == limit_move_y:
             self.vel = 0
             self.vel_drift = Vector2(0, 0)
+
+        self.rpm_update() #New rpm system update
 
     def rotate(self, left=False, right=False):
         if left:
@@ -255,7 +276,9 @@ def draw(screen, images, player_car):
     gear_text = font.render(f"Gear: {gear_display}", True, (255, 255, 255))
     speed_text = font.render(
         f"Speed: {abs(player_car.vel):.1f}", True, (255, 255, 255))
-
+    rpm_text = font.render(f"RPM: {int(player_car.rpm * 100)}%", True, (255, 255, 255)) #Displays the rpm of the car
+    
+    screen.blit(rpm_text, (10, 70))
     screen.blit(gear_text, (10, 10))
     screen.blit(speed_text, (10, 40))
 
