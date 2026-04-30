@@ -8,16 +8,16 @@ from util import scale_img, blit_rotate_center
 pygame.init()
 pygame.mixer.init()
 
-GRASS = scale_img(pygame.image.load("img/grass.jpg"), 2.5)
-TRACK = scale_img(pygame.image.load("img/track.png"), 0.9)
-TRACK_BORDER = scale_img(pygame.image.load("img/track-border.png"), 0.9)
+GRASS = scale_img(pygame.image.load("img/grass.jpg"), 4)
+TRACK = scale_img(pygame.image.load("img/track.png"), 0.7)
+TRACK_BORDER = scale_img(pygame.image.load("img/track-border.png"), 0.7)
 FINISH = pygame.image.load("img/finish.png")
 
-CAR = scale_img(pygame.image.load("img/red-car.png"), 0.55)
+CAR = scale_img(pygame.image.load("img/red-car.png"), 0.20)
 
-ZOOM = 1.5
-WIDTH = 900
-HEIGHT = 500
+ZOOM = 2
+WIDTH = 1200
+HEIGHT = 700
 
 font = pygame.font.SysFont("Arial", 28)
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -112,11 +112,21 @@ class AbstractCar:
 
     def gear_up(self):
         if self.gear < 5:
-            self.car_gear(self.gear + 1, gear_up_sound)
+            if self.rpm >= 0.8 or self.gear <= 0:
+                self.car_gear(self.gear + 1, gear_up_sound)
 
     def gear_down(self):
         if self.gear > -1:
-            self.car_gear(self.gear - 1, gear_down_sound)
+            next_gear = self.gear - 1
+
+            next_gear_max = self.max_vel * self.gear_ratio.get(next_gear, 0)
+        if next_gear_max > 0:
+            projected_rpm = self.rpm_min + (abs(self.vel) / next_gear_max) * (1.0 - self.rpm_min)
+        else:
+            projected_rpm = self.rpm_min
+        
+        if projected_rpm <= self.rpm_redline:
+            self.car_gear(next_gear, gear_down_sound)
 
     def update_sound(self):
         if self.engine_state == "idle":
@@ -137,13 +147,20 @@ class AbstractCar:
     def gear_max(self):
         return self.max_vel * self.gear_ratio[self.gear]
 
-    def rpm_update(self):  
+    def rpm_update(self):
         target_vel = self.gear_max()
         if target_vel > 0:
-            self.rpm = self.rpm_min + (abs(self.vel) / target_vel) * (1.0 - self.rpm_min)
+            target_rpm = self.rpm_min + (abs(self.vel) / target_vel) * (1.0 - self.rpm_min)
         else:
-            self.rpm = self.rpm_min #This is for neutral
-        self.rpm = max(self.rpm_min, min(self.rpm, 1.0))
+            target_rpm = self.rpm_min
+
+        target_rpm = max(self.rpm_min, min(target_rpm, 1.0))
+
+        # RPM rises faster than it falls (like a real engine)
+        if target_rpm > self.rpm:
+            self.rpm += min(0.02, target_rpm - self.rpm)  # rise rate
+        else:
+            self.rpm += max(-0.01, target_rpm - self.rpm)  # fall rate
 
     def rpm_torque(self):
         if self.rpm < 0.4:
@@ -296,7 +313,7 @@ running = True
 FPS = 60
 clock = pygame.time.Clock()
 images = [(GRASS, (0, 0)), (TRACK, (0, 0))]
-player_car = PlayerCar(8, 4)
+player_car = PlayerCar(6, 4)
 
 while running:
     clock.tick(FPS)
@@ -307,18 +324,18 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_e:
+            if event.key == pygame.K_i:
                 player_car.gear_up()
-            if event.key == pygame.K_q:
+            if event.key == pygame.K_k:
                 player_car.gear_down()
 
     keys = pygame.key.get_pressed()
     moved = False
 
-    if keys[pygame.K_w] and not keys[pygame.K_s]: #Not operator ensures when holding Gas and Break don't call move() twice, which caused a sudden jump in speed before breaking
+    if keys[pygame.K_w] and not keys[pygame.K_SPACE]: #Not operator ensures when holding Gas and Break don't call move() twice, which caused a sudden jump in speed before breaking
         moved = True
         player_car.drive_gear()
-    if keys[pygame.K_s]:
+    if keys[pygame.K_SPACE]:
         moved = True
         player_car.brake()
 
