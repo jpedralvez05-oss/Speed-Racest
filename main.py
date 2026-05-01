@@ -11,6 +11,8 @@ pygame.mixer.init()
 GRASS = scale_img(pygame.image.load("img/grass.jpg"), 4)
 TRACK = scale_img(pygame.image.load("img/track.png"), 0.7)
 TRACK_BORDER = scale_img(pygame.image.load("img/track-border.png"), 0.7)
+# created a mask so it tracks the track border of the image
+TRACK_BORDER_MASK = pygame.mask.from_surface(TRACK_BORDER)
 FINISH = pygame.image.load("img/finish.png")
 
 CAR = scale_img(pygame.image.load("img/red-car.png"), 0.20)
@@ -56,9 +58,9 @@ class AbstractCar:
         self.x, self.y = self.START_POS
         self.acceleration = 0.1
         self.engine_state = "idle"
-        self.rpm = 0                #self.rpm = self.vel / self.max_vel, replaced stale code with new rpm system
-        self.rpm_redline = 0.9      #This is where the redline starts for the rpm ratio, basically the redline is line where the gear will start sustaining damage if redlined for too long
-        self.rpm_min = 0.2          #The rpm's idle position
+        self.rpm = 0  # self.rpm = self.vel / self.max_vel, replaced stale code with new rpm system
+        self.rpm_redline = 0.9  # This is where the redline starts for the rpm ratio, basically the redline is line where the gear will start sustaining damage if redlined for too long
+        self.rpm_min = 0.2  # The rpm's idle position
 
         self.gear = 1
         self.gear_ratio = {-1: 0.25, 0: 0.0, 1: 0.25,
@@ -121,10 +123,11 @@ class AbstractCar:
 
             next_gear_max = self.max_vel * self.gear_ratio.get(next_gear, 0)
         if next_gear_max > 0:
-            projected_rpm = self.rpm_min + (abs(self.vel) / next_gear_max) * (1.0 - self.rpm_min)
+            projected_rpm = self.rpm_min + \
+                (abs(self.vel) / next_gear_max) * (1.0 - self.rpm_min)
         else:
             projected_rpm = self.rpm_min
-        
+
         if projected_rpm <= self.rpm_redline:
             self.car_gear(next_gear, gear_down_sound)
 
@@ -150,7 +153,8 @@ class AbstractCar:
     def rpm_update(self):
         target_vel = self.gear_max()
         if target_vel > 0:
-            target_rpm = self.rpm_min + (abs(self.vel) / target_vel) * (1.0 - self.rpm_min)
+            target_rpm = self.rpm_min + \
+                (abs(self.vel) / target_vel) * (1.0 - self.rpm_min)
         else:
             target_rpm = self.rpm_min
 
@@ -164,13 +168,14 @@ class AbstractCar:
 
     def rpm_torque(self):
         if self.rpm < 0.4:
-            return 0.6 #low rpm
+            return 0.6  # low rpm
         elif self.rpm < self.rpm_redline:
-            return 1.0 #max rpm
+            return 1.0  # max rpm
         else:
-            return 0.7 #redline, power falls off
+            return 0.7  # redline, power falls off
 
-    def drive_gear(self):   #renamed function from neutral_gear to drive_gear, makes more sense since it handles all the gears from reverse to fifth.
+    # renamed function from neutral_gear to drive_gear, makes more sense since it handles all the gears from reverse to fifth.
+    def drive_gear(self):
         if self.gear == 0:
             self.reduce_speed()
             self.engine_state = "idle"
@@ -179,14 +184,16 @@ class AbstractCar:
         target_vel = self.gear_max()
         self.engine_state = "driving"
 
-        if self.gear > 0: #Added new elif statement to make downshift slowly reduce speed to previous limit instead of snapping back
+        if self.gear > 0:  # Added new elif statement to make downshift slowly reduce speed to previous limit instead of snapping back
             if self.vel < 0:
                 self.vel = min(self.vel + self.acceleration * 2, 0)
             elif self.vel < target_vel:
                 gear_accel = self.acceleration * (0.5 + self.gear * 0.2)
-                #Tapers acceleration when nearing velocity, makes it slightly more realistic
-                speed_ratio = 1 - (self.vel / target_vel) if target_vel > 0 else 0
-                self.vel = min(self.vel + gear_accel * speed_ratio * self.rpm_torque(), target_vel)
+                # Tapers acceleration when nearing velocity, makes it slightly more realistic
+                speed_ratio = 1 - \
+                    (self.vel / target_vel) if target_vel > 0 else 0
+                self.vel = min(self.vel + gear_accel *
+                               speed_ratio * self.rpm_torque(), target_vel)
             else:
                 self.vel = max(self.vel - self.acceleration * 0.5, target_vel)
 
@@ -195,11 +202,12 @@ class AbstractCar:
                 self.vel = max(self.vel - self.acceleration * 2, 0)
             elif abs(self.vel) < target_vel:
                 gear_accel = self.acceleration * 0.5
-                speed_ratio = 1 - (abs(self.vel) / target_vel) if target_vel > 0 else 0
-                self.vel = max(self.vel - gear_accel * speed_ratio * self.rpm_torque(), -target_vel)
+                speed_ratio = 1 - \
+                    (abs(self.vel) / target_vel) if target_vel > 0 else 0
+                self.vel = max(self.vel - gear_accel *
+                               speed_ratio * self.rpm_torque(), -target_vel)
             else:
                 self.vel = min(self.vel + self.acceleration * 0.5, -target_vel)
-                
 
         self.move()
 
@@ -213,7 +221,7 @@ class AbstractCar:
             self.vel = min(self.vel + brake_force, 0)
         self.move()
 
-    #Removed move_forward since it is dead code.
+    # Removed move_forward since it is dead code.
 
     def move(self):
         radians = math.radians(self.angle)
@@ -238,7 +246,7 @@ class AbstractCar:
             self.vel = 0
             self.vel_drift = Vector2(0, 0)
 
-        self.rpm_update() #New rpm system update
+        self.rpm_update()  # New rpm system update
 
     def rotate(self, left=False, right=False):
         if left:
@@ -269,10 +277,31 @@ class AbstractCar:
 
         return offset
 
+    def track_collision(self, mask, x=0, y=0):
+        rotated_image = pygame.transform.rotate(self.img, self.angle)
+        rect_collision = rotated_image.get_rect(
+            center=self.img.get_rect(topleft=(self.x, self.y)) .center)
+
+        car_mask = pygame.mask.from_surface(
+            rotated_image)  # mask for the rotated car
+        # tracks the track mask and the car mask both its top left corner
+        offset = (int(rect_collision.x - x), int(rect_collision.y - y))
+
+        # checks if the pixels of the car mask touches the pixels of the track mask
+        overlap_checker = mask.overlap(car_mask, offset)
+        return overlap_checker
+
+    def bounce(self):
+        self.vel = -self.vel * 0.8
+        self.vel_drift = -self.vel_drift * 0.8
+        self.move()
+        # bounce the car, reversing the cars direction
+        # (0.8 is the percent that makes the car loses it's momentum when hitting the border)
+
 
 class PlayerCar(AbstractCar):
     IMG = CAR
-    START_POS = (180, 200)
+    START_POS = (250, 220)
 
 
 def draw(screen, images, player_car):
@@ -298,8 +327,10 @@ def draw(screen, images, player_car):
     gear_text = font.render(f"Gear: {gear_display}", True, (255, 255, 255))
     speed_text = font.render(
         f"Speed: {abs(player_car.vel):.1f}", True, (255, 255, 255))
-    rpm_text = font.render(f"RPM: {int(player_car.rpm * 100)}%", True, (255, 255, 255)) #Displays the rpm of the car
-    
+    # Displays the rpm of the car
+    rpm_text = font.render(
+        f"RPM: {int(player_car.rpm * 100)}%", True, (255, 255, 255))
+
     screen.blit(rpm_text, (10, 70))
     screen.blit(gear_text, (10, 10))
     screen.blit(speed_text, (10, 40))
@@ -332,7 +363,12 @@ while running:
     keys = pygame.key.get_pressed()
     moved = False
 
-    if keys[pygame.K_w] and not keys[pygame.K_SPACE]: #Not operator ensures when holding Gas and Break don't call move() twice, which caused a sudden jump in speed before breaking
+    prev_x = player_car.x
+    prev_y = player_car.y
+    prev_angle = player_car.angle
+
+    # Not operator ensures when holding Gas and Break don't call move() twice, which caused a sudden jump in speed before breaking
+    if keys[pygame.K_w] and not keys[pygame.K_SPACE]:
         moved = True
         player_car.drive_gear()
     if keys[pygame.K_SPACE]:
@@ -341,10 +377,22 @@ while running:
 
     if keys[pygame.K_a] and player_car.vel != 0:
         player_car.rotate(left=True)
+
     if keys[pygame.K_d] and player_car.vel != 0:
         player_car.rotate(right=True)
 
     if not moved:
+        # reduces speed when the user lets go of the "w" key to slow down just like irl
         player_car.reduce_speed()
+
+    # this puts the car back in 1 frame when it hits the track border while still having the bounce effect
+    # this prevents the car fromm getting stuck in the track border
+    # uhh Im stuck stepsis
+    if player_car.track_collision(TRACK_BORDER_MASK) is not None:
+        player_car.x = prev_x
+        player_car.y = prev_y
+        player_car.angle = prev_angle
+        player_car.bounce()
+
 
 pygame.quit()
