@@ -12,13 +12,13 @@ BG = scale_img(pygame.image.load("img/background.png"), 0.9)
 TRACK = scale_img(pygame.image.load("img/track.png"), 0.9)
 TRACK_BORDER = scale_img(pygame.image.load("img/track-border.png"), 0.9)
 TRACK_BORDER_MASK = pygame.mask.from_surface(TRACK_BORDER)
-FINISH = scale_img(pygame.transform.rotate(pygame.image.load("img/finish.png"), 45), 0.8)
+FINISH = scale_img(pygame.transform.rotate(pygame.image.load("img/finish.png"), 45), 0.3)
 FINISH_MASK = pygame.mask.from_surface(FINISH)
 FINISH_POS = (2180, 950)
 
 CAR = scale_img(pygame.image.load("img/red-car.png"), 0.20)
 
-ZOOM = 1
+ZOOM = 2
 WIDTH = 1200
 HEIGHT = 700
 
