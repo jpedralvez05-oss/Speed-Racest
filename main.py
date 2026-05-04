@@ -338,6 +338,37 @@ class PlayerCar(AbstractCar):
     IMG = CAR
     START_POS = (2100, 850)
 
+def draw_speedometer(screen, player_car): #speedometer logic placeholder, touch me pls kung may assets na
+    #bottom right corner
+    center_x = WIDTH - 120
+    center_y = HEIGHT - 120
+    radius = 90
+
+    pygame.draw.circle(screen, (30, 30, 30), (center_x, center_y), radius)
+    pygame.draw.circle(screen, (255, 255, 255), (center_x, center_y), radius, 3)
+
+
+    #Needle logic 
+    speed = abs(player_car.vel)
+
+    max_speed = player_car.max_vel
+    speed_ratio = min(speed / max_speed, 1)
+
+
+    angle = math.radians(180 - (speed_ratio * 180))
+
+    needle_length = radius - 20
+    needle_x = center_x + math.cos(angle) * needle_length
+    needle_y = center_y - math.sin(angle) * needle_length
+
+    pygame.draw.line(screen, (255, 0, 0),(center_x, center_y), (needle_x, needle_y), 4)
+
+    pygame.draw.circle(screen, (255, 0, 0), (center_x, center_y), 5)
+
+    speed_text = font.render(f"{int(speed * 20)} km/h", True, (255, 255, 255))
+    text_rect = speed_text.get_rect(center=(center_x, center_y + 40))
+    screen.blit(speed_text, text_rect)
+
 
 def draw(screen, images, player_car):
     camera_offset = player_car.camera()
@@ -390,6 +421,7 @@ def draw(screen, images, player_car):
         screen.blit(msg, msg_rect)
 
     player_car.update_sound()
+    draw_speedometer(screen, player_car)
     pygame.display.update()
 
 
