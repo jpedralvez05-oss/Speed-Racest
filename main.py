@@ -338,14 +338,61 @@ class PlayerCar(AbstractCar):
     IMG = CAR
     START_POS = (2100, 850)
 
-def draw_speedometer(screen, player_car): #speedometer logic placeholder, touch me pls kung may assets na
-    #bottom right corner
-    center_x = WIDTH - 120
+def draw_tachometer(screen, player_car):
+    # bottom-left
+    center_x = 320
     center_y = HEIGHT - 120
     radius = 90
 
     pygame.draw.circle(screen, (30, 30, 30), (center_x, center_y), radius)
     pygame.draw.circle(screen, (255, 255, 255), (center_x, center_y), radius, 3)
+
+    # Tick marks
+    for i in range(0, 181, 30):
+        angle = math.radians(180 - i)
+        x1 = center_x + math.cos(angle) * (radius - 10)
+        y1 = center_y - math.sin(angle) * (radius - 10)
+        x2 = center_x + math.cos(angle) * radius
+        y2 = center_y - math.sin(angle) * radius
+        pygame.draw.line(screen, (255, 255, 255), (x1, y1), (x2, y2), 2)
+
+    # Needle logic
+    rpm_ratio = player_car.rpm  
+
+    angle = math.radians(180 - (rpm_ratio * 180))
+
+    needle_length = radius - 20
+    needle_x = center_x + math.cos(angle) * needle_length
+    needle_y = center_y - math.sin(angle) * needle_length
+
+    pygame.draw.line(screen, (255, 0, 0),(center_x, center_y),(needle_x, needle_y), 4)
+
+    pygame.draw.circle(screen, (255, 0, 0), (center_x, center_y), 5)
+
+   
+    rpm_value = int(rpm_ratio * 8000)
+    rpm_text = font.render(f"{rpm_value} RPM", True, (255, 255, 255))
+    text_rect = rpm_text.get_rect(center=(center_x, center_y + 40))
+    screen.blit(rpm_text, text_rect)
+
+
+def draw_speedometer(screen, player_car): #speedometer logic placeholder, touch me pls kung may assets na
+    #relocate to bottom left for better visibility
+    center_x = 120
+    center_y = HEIGHT - 120
+    radius = 90
+
+    pygame.draw.circle(screen, (30, 30, 30), (center_x, center_y), radius)
+    pygame.draw.circle(screen, (255, 255, 255), (center_x, center_y), radius, 3)
+
+    # Tick marks
+    for i in range(0, 181, 30):  # 0° to 180°
+        angle = math.radians(180 - i)
+        x1 = center_x + math.cos(angle) * (radius - 10)
+        y1 = center_y - math.sin(angle) * (radius - 10)
+        x2 = center_x + math.cos(angle) * radius
+        y2 = center_y - math.sin(angle) * radius
+        pygame.draw.line(screen, (255, 255, 255), (x1, y1), (x2, y2), 2)
 
 
     #Needle logic 
@@ -422,6 +469,7 @@ def draw(screen, images, player_car):
 
     player_car.update_sound()
     draw_speedometer(screen, player_car)
+    draw_tachometer(screen, player_car)
     pygame.display.update()
 
 
