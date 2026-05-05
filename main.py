@@ -5,6 +5,7 @@ import os
 from pygame.math import Vector2
 from util import scale_img, blit_rotate_center
 
+
 pygame.init()
 pygame.mixer.init()
 
@@ -17,6 +18,8 @@ FINISH_MASK = pygame.mask.from_surface(FINISH)
 FINISH_POS = (2180, 950)
 
 CAR = scale_img(pygame.image.load("img/red-car.png"), 0.20)
+ENEMY_CAR = scale_img(pygame.image.load("img/blue-car.png"), 0.20)
+ENEMY_CAR_2 = scale_img(pygame.image.load("img/green-car.png"), 0.20)
 
 ZOOM = 2
 WIDTH = 1200
@@ -47,16 +50,6 @@ third_gear_play = pygame.mixer.Sound(third_gear_sound)
 fourth_gear_play = pygame.mixer.Sound(fourth_gear_sound)
 fifth_gear_play = pygame.mixer.Sound(fifth_gear_sound)
 
-
-def format_time(seconds):
-    if seconds is None:
-        return "--:--.--"
-    mins = int(seconds // 60)
-    secs = int(seconds % 60)
-    centis = int((seconds % 1) * 100)
-    return f"{mins:02d}:{secs:02d}.{centis:02d}"
-
-
 class AbstractCar:
     def __init__(self, max_vel, rotation_vel):
         self.img = self.IMG
@@ -81,8 +74,7 @@ class AbstractCar:
         self.finish_cooldown = 0 
 
         self.gear = 1
-        self.gear_ratio = {-1: 0.25, 0: 0.0, 1: 0.25,
-                           2: 0.45, 3: 0.65, 4: 0.85, 5: 1.0}
+        self.gear_ratio = {-1: 0.25, 0: 0.0, 1: 0.25, 2: 0.45, 3: 0.65, 4: 0.85, 5: 1.0}
 
         self.gear_sound_dict = {
             "idle": idle_sound, "driving": [
@@ -334,9 +326,63 @@ class AbstractCar:
             self.current_lap_time = now - self.lap_start_time
 
 
+
+def format_time(seconds):
+    if seconds is None:
+        return "--:--.--"
+    mins = int(seconds // 60)
+    secs = int(seconds % 60)
+    centis = int((seconds % 1) * 100)
+    return f"{mins:02d}:{secs:02d}.{centis:02d}"
+
+
 class PlayerCar(AbstractCar):
     IMG = CAR
     START_POS = (2100, 850)
+
+
+# to be added: collision logic with player car
+    def __init__(self, max_vel, rotation_vel, path, img):
+        self.path = path
+        self.current_point = 0
+
+        self.IMG = img
+        self.START_POS = path[0]
+
+        super().__init__(max_vel, rotation_vel)
+
+    def calculate_angle(self):
+        target_x, target_y = self.path[self.current_point]
+        dx = target_x - self.x
+        dy = target_y - self.y
+
+        desired_angle = math.degrees(math.atan2(-dy, dx))  # corrected
+        angle_diff = (desired_angle - self.angle + 180) % 360 - 180
+        return angle_diff
+
+    def update_path_point(self):
+        target_x, target_y = self.path[self.current_point]
+        distance = math.hypot(target_x - self.x, target_y - self.y)
+
+        if distance < 50:
+            self.current_point = (self.current_point + 1) % len(self.path)
+
+    def move_enemy(self):
+        angle_diff = self.calculate_angle()
+
+        if angle_diff > 5:
+            self.rotate(left=True)
+        elif angle_diff < -5:
+            self.rotate(right=True)
+
+        if abs(angle_diff) > 30:
+            self.vel = max(self.vel - self.acceleration, self.max_vel * 0.5)
+        else:
+            self.vel = min(self.vel + self.acceleration, self.max_vel)
+
+        self.move()
+        self.update_path_point()
+
 
 def draw_tachometer(screen, player_car):
     # bottom-left
@@ -374,7 +420,6 @@ def draw_tachometer(screen, player_car):
     rpm_text = font.render(f"{rpm_value} RPM", True, (255, 255, 255))
     text_rect = rpm_text.get_rect(center=(center_x, center_y + 40))
     screen.blit(rpm_text, text_rect)
-
 
 def draw_speedometer(screen, player_car): #speedometer logic placeholder, touch me pls kung may assets na
     #relocate to bottom left for better visibility
@@ -417,7 +462,7 @@ def draw_speedometer(screen, player_car): #speedometer logic placeholder, touch 
     screen.blit(speed_text, text_rect)
 
 
-def draw(screen, images, player_car):
+def draw(screen, images, player_car, enemy_car, enemy_car_2):
     camera_offset = player_car.camera()
     world_surface = pygame.Surface((int(WIDTH / ZOOM), int(HEIGHT / ZOOM)))
 
@@ -428,7 +473,8 @@ def draw(screen, images, player_car):
                                 FINISH_POS[1] - camera_offset.y))
 
     player_car.draw(world_surface, camera_offset)
-
+    enemy_car.draw(world_surface, camera_offset)
+    enemy_car_2.draw(world_surface, camera_offset)
     scaled = pygame.transform.scale(world_surface, (WIDTH, HEIGHT))
     screen.blit(scaled, (0, 0))
 
@@ -472,18 +518,49 @@ def draw(screen, images, player_car):
     draw_tachometer(screen, player_car)
     pygame.display.update()
 
+ #path coordinates for enemy car, to be followed in order, looped
+enemy_path = [
+    (2100, 850),
+    (1800, 700),
+    (1500, 600),
+    (1200, 500),
+    (900, 600),
+    (700, 800),
+    (900, 1000),
+    (1200, 1100),
+    (1600, 1000),
+    (1900, 900)
+]
+
+enemy_path_2 = [
+    (2100, 900),
+    (1850, 750),
+    (1600, 650),
+    (1300, 550),
+    (1000, 650),
+    (800, 850),
+    (1000, 1050),
+    (1300, 1150),
+    (1700, 1050),
+    (2000, 950)
+]
 
 running = True
 FPS = 60
 clock = pygame.time.Clock()
 images = [(BG, (0, 0)), (TRACK, (0, 0))]
 player_car = PlayerCar(6, 4)
+enemy_car = EnemyCar(5, 4, enemy_path, ENEMY_CAR)
+enemy_car_2 = EnemyCar(4.5, 4, enemy_path_2, ENEMY_CAR_2)
+
 
 while running:
     clock.tick(FPS)
 
     player_car.update_lap()
-    draw(screen, images, player_car)
+    enemy_car.move_enemy()
+    enemy_car_2.move_enemy()
+    draw(screen, images, player_car, enemy_car, enemy_car_2)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
