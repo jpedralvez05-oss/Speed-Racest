@@ -18,7 +18,10 @@ FINISH_MASK = pygame.mask.from_surface(FINISH)
 FINISH_POS = (2180, 950)
 CAR = scale_img(pygame.image.load("img/red-car.png"), 0.20)
 ENEMY_CAR = scale_img(pygame.image.load("img/blue-car.png"), 0.20)
-ENEMY_CAR_2 = scale_img(pygame.image.load("img/green-car.png"), 0.20)
+GAUGE_IMG = pygame.transform.scale(pygame.image.load("img/Speedometer.png"), (370, 200))
+
+
+
 
 ZOOM = 2
 WIDTH = 1200
@@ -316,109 +319,116 @@ class EnemyCar(AbstractCar):
         self.path = path
         self.current_point = 1
         self.IMG = img
-        self.START_POS = self.path[0]
+        self.START_POS = (self.path[0][0] - img.get_width() / 2, self.path[0][1] - img.get_height() / 2)
         super().__init__(max_vel, rotation_vel)
+        self.grip = 0.3
+        self.path_radius = 22
 
-        target_x, target_y = self.path[self.current_point]
-        dx = target_x - self.x
-        dy = target_y - self.y
+        target = self.get_target()
+        center = self.get_center()
+        dx = target.x - center.x
+        dy = target.y - center.y
         self.angle = math.degrees(math.atan2(-dx, -dy))
 
+    def get_center(self):
+        return Vector2(self.x + self.img.get_width() / 2,
+                       self.y + self.img.get_height() / 2)
+
+    def get_target(self):
+        return Vector2(self.path[self.current_point])
+
     def calculate_angle(self):
-        target_x, target_y = self.path[self.current_point]
-        dx = target_x - self.x
-        dy = target_y - self.y
-        # Correct Pygame coordinate math without the 180-degree flip
+        target = self.get_target()
+        center = self.get_center()
+        dx = target.x - center.x
+        dy = target.y - center.y
         desired_angle = math.degrees(math.atan2(-dx, -dy))
         angle_diff = (desired_angle - self.angle + 180) % 360 - 180
         return angle_diff
 
     def update_path_point(self):
-        target_x, target_y = self.path[self.current_point]
-        distance = math.hypot(target_x - self.x, target_y - self.y)
-        if distance < 50:
+        center = self.get_center()
+        target = self.get_target()
+        previous = Vector2(self.path[self.current_point - 1])
+        segment = target - previous
+        distance = center.distance_to(target)
+        passed_target = False
+        if segment.length_squared() > 0:
+            passed_target = (center - target).dot(segment) > 0
+
+        if distance < self.path_radius or passed_target:
             self.current_point = (self.current_point + 1) % len(self.path)
 
     def move_enemy(self):
+        self.update_path_point()
         angle_diff = self.calculate_angle()
-        if angle_diff > 5:
-            self.rotate(left=True)
-        elif angle_diff < -5:
-            self.rotate(right=True)
-        if abs(angle_diff) > 30:
-            self.vel = max(self.vel - self.acceleration,
-                           self.max_vel * 0.5)
+        turn = max(-self.rotation_vel, min(self.rotation_vel, angle_diff))
+        self.angle += turn
+
+        turn_amount = abs(angle_diff)
+        if turn_amount > 55:
+            target_vel = self.max_vel * 0.35
+        elif turn_amount > 25:
+            target_vel = self.max_vel * 0.55
+        elif turn_amount > 10:
+            target_vel = self.max_vel * 0.8
         else:
-            self.vel = min(self.vel + self.acceleration, self.max_vel)
+            target_vel = self.max_vel
+
+        if self.vel < target_vel:
+            self.vel = min(self.vel + self.acceleration, target_vel)
+        else:
+            self.vel = max(self.vel - self.acceleration * 1.5, target_vel)
+
+        if turn_amount > 45:
+            self.vel_drift *= 0.92
+
         self.move()
         self.update_path_point()
 
+def draw_needle(screen, center, angle, length, color=(255, 0, 0)):
+    end_x = center[0] + math.cos(angle) * length
+    end_y = center[1] - math.sin(angle) * length
+    pygame.draw.line(screen, color, center, (end_x, end_y), 4)
+    pygame.draw.circle(screen, color, center, 5)
 
-def draw_tachometer(screen, player_car):
-    # bottom-left
-    center_x = 320
-    center_y = HEIGHT - 120
-    radius = 90
-    pygame.draw.circle(screen, (30, 30, 30), (center_x, center_y), radius)
-    pygame.draw.circle(screen, (255, 255, 255),
-                       (center_x, center_y), radius, 3)
-    # Tick marks
-    for i in range(0, 181, 30):
-        angle = math.radians(180 - i)
-        x1 = center_x + math.cos(angle) * (radius - 10)
-        y1 = center_y - math.sin(angle) * (radius - 10)
-        x2 = center_x + math.cos(angle) * radius
-        y2 = center_y - math.sin(angle) * radius
-        pygame.draw.line(screen, (255, 255, 255), (x1, y1), (x2, y2), 2)
-    # Needle logic
-    rpm_ratio = player_car.rpm
-    angle = math.radians(180 - (rpm_ratio * 180))
-    needle_length = radius - 20
-    needle_x = center_x + math.cos(angle) * needle_length
-    needle_y = center_y - math.sin(angle) * needle_length
-    pygame.draw.line(screen, (255, 0, 0), (center_x, center_y),
-                     (needle_x, needle_y), 4)
-    pygame.draw.circle(screen, (255, 0, 0), (center_x, center_y), 5)
-    rpm_value = int(rpm_ratio * 8000)
-    rpm_text = font.render(f"{rpm_value} RPM", True, (255, 255, 255))
-    text_rect = rpm_text.get_rect(center=(center_x, center_y + 40))
-    screen.blit(rpm_text, text_rect)
-
-# speedometer logic
-
-
-def draw_speedometer(screen, player_car):
-    center_x = 120
-    center_y = HEIGHT - 120
-    radius = 90
-    pygame.draw.circle(screen, (30, 30, 30), (center_x, center_y), radius)
-    pygame.draw.circle(screen, (255, 255, 255),
-                       (center_x, center_y), radius, 3)
-    # Tick marks
-    for i in range(0, 181, 30):
-        angle = math.radians(180 - i)
-        x1 = center_x + math.cos(angle) * (radius - 10)
-        y1 = center_y - math.sin(angle) * (radius - 10)
-        x2 = center_x + math.cos(angle) * radius
-        y2 = center_y - math.sin(angle) * radius
-        pygame.draw.line(screen, (255, 255, 255), (x1, y1), (x2, y2), 2)
-    # Needle logic
+def get_speed_angle(player_car):
     speed = abs(player_car.vel)
     max_speed = player_car.max_vel
-    speed_ratio = min(speed / max_speed, 1)
-    angle = math.radians(180 - (speed_ratio * 180))
-    needle_length = radius - 20
-    needle_x = center_x + math.cos(angle) * needle_length
-    needle_y = center_y - math.sin(angle) * needle_length
-    pygame.draw.line(screen, (255, 0, 0), (center_x, center_y),
-                     (needle_x, needle_y), 4)
-    pygame.draw.circle(screen, (255, 0, 0), (center_x, center_y), 5)
-    speed_text = font.render(f"{int(speed * 20)} km/h", True, (255, 255, 255))
-    text_rect = speed_text.get_rect(center=(center_x, center_y + 40))
-    screen.blit(speed_text, text_rect)
+
+    ratio = min(speed / max_speed, 1)
+
+    # Map 0 → 180°  and 1 → 0°
+    return math.radians(180 - (ratio * 180))
+
+def get_rpm_angle(player_car):
+    rpm_ratio = player_car.rpm  # 0 → 1
+
+    start_angle = 280  
+    end_angle = 75  
+
+    angle = start_angle + (end_angle - start_angle) * rpm_ratio
+    return math.radians(angle)
+
+def draw_gauge(screen, player_car):
+    gauge_x = 20
+    gauge_y = HEIGHT - 180
+
+    screen.blit(GAUGE_IMG, (gauge_x, gauge_y))
+
+    tach_center = (gauge_x + 100, gauge_y + 120)  
+    speed_center = (gauge_x + 240, gauge_y + 150) 
+
+    # --- Angles ---
+    rpm_angle = get_rpm_angle(player_car)
+    speed_angle = get_speed_angle(player_car)
+
+    # --- Draw needles ---
+    draw_needle(screen, tach_center, rpm_angle, 30)
+    draw_needle(screen, speed_center, speed_angle, 60)
 
 
-def draw(screen, images, player_car, enemy_car, enemy_car_2):
+def draw(screen, images, player_car, enemy_car):
     camera_offset = player_car.camera()
     world_surface = pygame.Surface((int(WIDTH / ZOOM), int(HEIGHT / ZOOM)))
     for img, pos in images:
@@ -428,9 +438,13 @@ def draw(screen, images, player_car, enemy_car, enemy_car_2):
                                 FINISH_POS[1] - camera_offset.y))
     player_car.draw(world_surface, camera_offset)
     enemy_car.draw(world_surface, camera_offset)
-    enemy_car_2.draw(world_surface, camera_offset)
     scaled = pygame.transform.scale(world_surface, (WIDTH, HEIGHT))
     screen.blit(scaled, (0, 0))
+
+    for point in enemy_path:
+        pygame.draw.circle(world_surface, (255, 0, 0),
+        (point[0] - camera_offset.x, point[1] - camera_offset.y), 5)
+    
     # --- HUD ---
     if player_car.gear == -1:
         gear_display = "R"
@@ -463,41 +477,239 @@ def draw(screen, images, player_car, enemy_car, enemy_car_2):
         msg_rect = msg.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 60))
         screen.blit(msg, msg_rect)
     player_car.update_sound()
-    draw_speedometer(screen, player_car)
-    draw_tachometer(screen, player_car)
+    draw_gauge(screen, player_car)
     pygame.display.update()
 
 
 
 enemy_path = [
-    (2100, 800),  
-    (2180, 950), 
-    (2208, 806),  
-    (2060, 891),
-    (1930, 804),
-    (1413, 603),
-    (1300, 615),
-    (1126, 850),
-    (948, 823),
-    (683, 511),
-    (318, 561)
-    
+    (2181, 949),
+    (2205, 973),
+    (2229, 997),
+    (2253, 1021),
+    (2265, 1049),
+    (2281, 1077),
+    (2301, 1105),
+    (2325, 1129),
+    (2349, 1153),
+    (2361, 1181),
+    (2373, 1209),
+    (2385, 1237),
+    (2405, 1265),
+    (2425, 1289),
+    (2434, 1321),
+    (2449, 1348),
+    (2465, 1377),
+    (2482, 1409),
+    (2494, 1437),
+    (2509, 1465),
+    (2518, 1493),
+    (2530, 1525),
+    (2530, 1557),
+    (2525, 1589),
+    (2509, 1609),
+    (2477, 1609),
+    (2445, 1613),
+    (2417, 1613),
+    (2393, 1589),
+    (2369, 1565),
+    (2345, 1541),
+    (2327, 1513),
+    (2317, 1485),
+    (2301, 1457),
+    (2281, 1433),
+    (2253, 1417),
+    (2225, 1401),
+    (2197, 1389),
+    (2169, 1377),
+    (2141, 1365),
+    (2117, 1341),
+    (2097, 1316),
+    (2090, 1285),
+    (2081, 1256),
+    (2065, 1229),
+    (2037, 1217),
+    (2005, 1213),
+    (1973, 1209),
+    (1941, 1201),
+    (1913, 1185),
+    (1901, 1161),
+    (1885, 1133),
+    (1877, 1101),
+    (1877, 1069),
+    (1877, 1037),
+    (1877, 1005),
+    (1879, 973),
+    (1879, 941),
+    (1874, 909),
+    (1853, 889),
+    (1825, 873),
+    (1797, 861),
+    (1773, 837),
+    (1741, 833),
+    (1713, 821),
+    (1685, 809),
+    (1657, 809),
+    (1633, 829),
+    (1605, 841),
+    (1577, 853),
+    (1549, 865),
+    (1521, 877),
+    (1493, 889),
+    (1465, 905),
+    (1441, 929),
+    (1421, 953),
+    (1401, 977),
+    (1377, 1005),
+    (1353, 1025),
+    (1325, 1041),
+    (1293, 1047),
+    (1261, 1047),
+    (1233, 1057),
+    (1205, 1045),
+    (1181, 1021),
+    (1157, 997),
+    (1133, 973),
+    (1109, 949),
+    (1097, 920),
+    (1069, 905),
+    (1041, 893),
+    (1017, 869),
+    (985, 861),
+    (953, 861),
+    (921, 857),
+    (889, 857),
+    (857, 853),
+    (829, 841),
+    (797, 829),
+    (770, 817),
+    (741, 805),
+    (717, 785),
+    (689, 773),
+    (657, 765),
+    (629, 753),
+    (601, 741),
+    (573, 729),
+    (545, 717),
+    (517, 705),
+    (489, 689),
+    (461, 677),
+    (433, 665),
+    (405, 653),
+    (377, 641),
+    (349, 625),
+    (321, 613),
+    (293, 593),
+    (269, 569),
+    (245, 545),
+    (221, 521),
+    (197, 497),
+    (173, 473),
+    (149, 449),
+    (125, 425),
+    (113, 397),
+    (129, 369),
+    (153, 345),
+    (177, 321),
+    (201, 297),
+    (229, 281),
+    (261, 273),
+    (289, 289),
+    (317, 301),
+    (349, 301),
+    (377, 313),
+    (405, 325),
+    (433, 341),
+    (437, 369),
+    (449, 397),
+    (461, 425),
+    (473, 453),
+    (485, 481),
+    (497, 509),
+    (509, 537),
+    (525, 561),
+    (553, 581),
+    (577, 601),
+    (609, 601),
+    (637, 613),
+    (669, 625),
+    (701, 629),
+    (733, 637),
+    (761, 649),
+    (785, 629),
+    (813, 617),
+    (843, 605),
+    (869, 581),
+    (893, 557),
+    (921, 545),
+    (949, 529),
+    (973, 509),
+    (993, 485),
+    (1009, 457),
+    (1021, 429),
+    (1033, 401),
+    (1065, 409),
+    (1089, 425),
+    (1085, 457),
+    (1067, 485),
+    (1065, 517),
+    (1065, 549),
+    (1065, 581),
+    (1065, 613),
+    (1065, 645),
+    (1061, 677),
+    (1049, 705),
+    (1069, 733),
+    (1089, 757),
+    (1089, 789),
+    (1093, 821),
+    (1101, 853),
+    (1113, 881),
+    (1133, 901),
+    (1161, 889),
+    (1189, 877),
+    (1221, 870),
+    (1250, 861),
+    (1277, 849),
+    (1305, 838),
+    (1331, 822),
+    (1361, 811),
+    (1391, 795),
+    (1418, 773),
+    (1445, 749),
+    (1473, 725),
+    (1497, 701),
+    (1521, 677),
+    (1545, 654),
+    (1573, 633),
+    (1601, 621),
+    (1625, 645),
+    (1649, 669),
+    (1673, 689),
+    (1705, 681),
+    (1733, 665),
+    (1765, 665),
+    (1797, 657),
+    (1829, 653),
+    (1861, 653),
+    (1889, 665),
+    (1917, 681),
+    (1941, 701),
+    (1965, 725),
+    (1989, 749),
+    (2013, 773),
+    (2037, 797),
+    (2061, 821),
+    (2085, 845),
+    (2097, 873),
+    (2113, 901),
+    (2137, 925),
+    (2165, 945),
+    (2181, 949)
 ]
 
 
-enemy_path_2 = [
-    (2100, 900),  
-    (2180, 980),  
-    (2238, 836),  
-    (2090, 921),
-    (1960, 834),
-    (1443, 633),
-    (1330, 645),
-    (1156, 880),
-    (978, 853),
-    (713, 541),
-    (348, 591)
-]
+
 
 running = True
 FPS = 60
@@ -505,14 +717,12 @@ clock = pygame.time.Clock()
 images = [(BG, (0, 0)), (TRACK, (0, 0))]
 player_car = PlayerCar(6, 4)
 enemy_car = EnemyCar(5, 4, enemy_path, ENEMY_CAR)
-enemy_car_2 = EnemyCar(4.5, 4, enemy_path_2, ENEMY_CAR_2)
 
 while running:
     clock.tick(FPS)
     player_car.update_lap()
     enemy_car.move_enemy()
-    enemy_car_2.move_enemy()
-    draw(screen, images, player_car, enemy_car, enemy_car_2)
+    draw(screen, images, player_car, enemy_car)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
