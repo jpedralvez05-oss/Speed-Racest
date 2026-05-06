@@ -1,11 +1,11 @@
 from app.core import config
+from app.core.config import idle_sound, fifth_gear_play, second_gear_play, third_gear_play, fourth_gear_play, first_gear_play, gear_down_sound, gear_up_sound, TRACK, WIDTH, ZOOM, HEIGHT, FINISH_MASK, FINISH_POS
 from app.core.util import blit_rotate_center
 import pygame, math, time
 from pygame.math import Vector2
 
 class AbstractCar:
     def __init__(self, max_vel, rotation_vel):
-
         self.img = self.IMG
         self.max_vel = max_vel
         self.vel = 0
@@ -30,12 +30,12 @@ class AbstractCar:
         self.gear_ratio = {-1: 0.25, 0: 0.0, 1: 0.25,
                            2: 0.45, 3: 0.65, 4: 0.85, 5: 1.0}
         self.gear_sound_dict = {
-            "idle": config.idle_sound, "driving": [
-                config.first_gear_play,
-                config.second_gear_play,
-                config.third_gear_play,
-                config.fourth_gear_play,
-                config.fifth_gear_play
+            "idle": idle_sound, "driving": [
+                first_gear_play,
+                second_gear_play,
+                third_gear_play,
+                fourth_gear_play,
+                fifth_gear_play
             ]}
         self.engine_channel = pygame.mixer.Channel(0)
         self.current_sound = None
@@ -75,7 +75,7 @@ class AbstractCar:
     def gear_up(self):
         if self.gear < 5:
             if self.rpm >= 0.8 or self.gear <= 0:
-                self.car_gear(self.gear + 1, config.gear_up_sound)
+                self.car_gear(self.gear + 1, gear_up_sound)
 
     def gear_down(self):
         if self.gear > -1:
@@ -87,7 +87,7 @@ class AbstractCar:
             else:
                 projected_rpm = self.rpm_min
             if projected_rpm <= self.rpm_redline:
-                self.car_gear(next_gear, config.gear_down_sound)
+                self.car_gear(next_gear, gear_down_sound)
 
     def update_sound(self):
         if self.engine_state == "idle":
@@ -175,8 +175,8 @@ class AbstractCar:
         self.vel_drift = self.vel_drift.lerp(target_velocity, self.grip)
         self.y -= self.vel_drift.y
         self.x -= self.vel_drift.x
-        limit_move_x = config.TRACK.get_width() - self.img.get_width()
-        limit_move_y = config.TRACK.get_height() - self.img.get_height()
+        limit_move_x = TRACK.get_width() - self.img.get_width()
+        limit_move_y = TRACK.get_height() - self.img.get_height()
         self.x = max(0, min(self.x, limit_move_x))
         self.y = max(0, min(self.y, limit_move_y))
         if self.x == 0 or self.x == limit_move_x or self.y == 0 or self.y == limit_move_y:
@@ -203,12 +203,12 @@ class AbstractCar:
         blit_rotate_center(screen, self.img, draw_pos, self.angle)
 
     def camera(self):
-        screen_center = Vector2((config.WIDTH / config.ZOOM) / 2, (config.HEIGHT / config.ZOOM) / 2)
+        screen_center = Vector2((WIDTH / ZOOM) / 2, (HEIGHT / ZOOM) / 2)
         car_center = Vector2(self.x + self.img.get_width() / 2,
                              self.y + self.img.get_height() / 2)
         offset = car_center - screen_center
-        offset.x = max(0, min(offset.x, config.TRACK.get_width() - (config.WIDTH / config.ZOOM)))
-        offset.y = max(0, min(offset.y, config.TRACK.get_height() - (config.HEIGHT / config.ZOOM)))
+        offset.x = max(0, min(offset.x, TRACK.get_width() - (WIDTH / ZOOM)))
+        offset.y = max(0, min(offset.y, TRACK.get_height() - (HEIGHT / ZOOM)))
         return offset
 
     def track_collision(self, mask, x=0, y=0):
@@ -230,7 +230,7 @@ class AbstractCar:
         # Count down the re-arm cooldown
         if self.finish_cooldown > 0:
             self.finish_cooldown -= 1
-        touching = self.track_collision(config.FINISH_MASK, *config.FINISH_POS) is not None
+        touching = self.track_collision(FINISH_MASK, *FINISH_POS) is not None
         if touching and not self.on_finish and self.finish_cooldown == 0 and self.vel > 0:
             self.on_finish = True
             self.finish_cooldown = 90
@@ -249,6 +249,15 @@ class AbstractCar:
         # Update running lap time
         if self.lap_start_time is not None:
             self.current_lap_time = now - self.lap_start_time
+
+def get_speed_angle(player_car):
+    speed = abs(player_car.vel)
+    max_speed = player_car.max_vel
+
+    ratio = min(speed / max_speed, 1)
+
+    # Map 0 → 180°  and 1 → 0°
+    return math.radians(180 - (ratio * 180))
 
 
 class PlayerCar(AbstractCar):

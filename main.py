@@ -1,7 +1,7 @@
 import pygame
 from app.core.config import clock, FPS, images, screen, TRACK_BORDER_MASK
 from app.car.player_car import player_car
-from app.car.enemy_car import enemy_car, enemy_car_2
+from app.car.enemy_car import enemy_car
 from app.display import draw
 
 running = True
@@ -11,8 +11,7 @@ if __name__ == "__main__":
         clock.tick(FPS)
         player_car.update_lap()
         enemy_car.move_enemy()
-        enemy_car_2.move_enemy()
-        draw(screen, images, player_car, enemy_car, enemy_car_2)
+        draw(screen, images, player_car, enemy_car)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
