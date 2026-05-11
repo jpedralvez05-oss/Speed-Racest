@@ -40,6 +40,16 @@ class AbstractCar:
         self.engine_channel = pygame.mixer.Channel(0)
         self.current_sound = None
 
+    def reset_pos(self):
+        self.x, self.y = self.START_POS
+        self.angle = 220
+
+    def reset_time(self):
+        self.lap_start_time = None
+        self.current_lap_time = 0.0
+        self.on_finish = False
+        self.finish_cooldown = 0
+
     def car_sound(self, sound):
         if self.current_sound != sound:
             self.engine_channel.stop()

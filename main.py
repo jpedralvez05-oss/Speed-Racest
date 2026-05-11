@@ -8,8 +8,6 @@ running = True
 
 if __name__ == "__main__":
     while running:
-        fps = clock.get_fps()
-        print(f"Current FPS: {fps:.2f}")
         clock.tick(FPS)
         player_car.update_lap()
         enemy_car.move_enemy()
@@ -31,6 +29,11 @@ if __name__ == "__main__":
                     player_car.gear_up()
                 if event.key == pygame.K_k:
                     player_car.gear_down()
+                if event.key == pygame.K_r:
+                    player_car.reset_pos()
+                    player_car.reset_time()
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
         keys = pygame.key.get_pressed()
         moved = False
         prev_x = player_car.x
