@@ -1,4 +1,5 @@
-import pygame, os
+import pygame
+import os
 from app.core.util import scale_img
 
 pygame.init()
@@ -15,7 +16,8 @@ FINISH_POS = (2180, 950)
 CAR = scale_img(pygame.image.load("app/img/red-car.png"), 0.20)
 
 ENEMY_CAR = scale_img(pygame.image.load("app/img/blue-car.png"), 0.20)
-GAUGE_IMG = pygame.transform.scale(pygame.image.load("app/img/Speedometer.png"), (370, 200))
+GAUGE_IMG = pygame.transform.scale(
+    pygame.image.load("app/img/Speedometer.png"), (370, 200))
 
 ZOOM = 2.5
 WIDTH = 1024
@@ -25,6 +27,8 @@ font = pygame.font.SysFont("Arial", 28)
 font_large = pygame.font.SysFont("Arial", 42, bold=True)
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Speed Racest")
+THUMBNAIL = pygame.transform.scale(pygame.image.load(
+    "app/img/Game Thumbnail.jpg").convert(), (WIDTH, HEIGHT))
 
 GEAR_DOWN_PATH = os.path.join('app/sounds', 'gear_down.mp3')
 GEAR_UP_PATH = os.path.join('app/sounds', 'gear_up.mp3')
