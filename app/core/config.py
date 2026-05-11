@@ -15,11 +15,18 @@ FINISH_POS = (2180, 950)
 CAR = scale_img(pygame.image.load("app/img/red-car.png"), 0.20)
 
 ENEMY_CAR = scale_img(pygame.image.load("app/img/blue-car.png"), 0.20)
-GAUGE_IMG = pygame.transform.scale(pygame.image.load("app/img/Speedometer.png"), (370, 200))
+
+GAUGE_SOURCE = pygame.image.load("app/img/Speedometer.png")
+GAUGE_WIDTH = 370
+GAUGE_SCALE = GAUGE_WIDTH / GAUGE_SOURCE.get_width()
+GAUGE_IMG = pygame.transform.scale(
+    GAUGE_SOURCE,
+    (GAUGE_WIDTH, int(GAUGE_SOURCE.get_height() * GAUGE_SCALE)),
+)
 
 ZOOM = 2.5
 WIDTH = 1024
-HEIGHT = 768
+HEIGHT =768
 
 font = pygame.font.SysFont("Arial", 28)
 font_large = pygame.font.SysFont("Arial", 42, bold=True)

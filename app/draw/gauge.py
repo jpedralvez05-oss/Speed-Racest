@@ -5,9 +5,10 @@ from app.draw.needle import draw_needle
 
 def draw_gauge(screen, player_car):
     gauge_x = 20
-    gauge_y = HEIGHT - 180
+    gauge_y = HEIGHT - 220
+    gauge_img_y = gauge_y - 115
 
-    screen.blit(GAUGE_IMG, (gauge_x, gauge_y))
+    screen.blit(GAUGE_IMG, (gauge_x, gauge_img_y))
 
     tach_center = (gauge_x + 100, gauge_y + 120)  
     speed_center = (gauge_x + 240, gauge_y + 150) 

@@ -10,7 +10,7 @@ if __name__ == "__main__":
     while running:
         clock.tick(FPS)
         player_car.update_lap()
-        enemy_car.move_enemy()
+        enemy_car.move_enemy(player_car)
         draw(screen, images, player_car, enemy_car)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
