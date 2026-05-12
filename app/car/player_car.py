@@ -42,6 +42,10 @@ class AbstractCar:
 
     def reset_pos(self):
         self.x, self.y = self.START_POS
+        self.vel = 0
+        self.vel_drift = Vector2(0, 0)
+        self.rpm = 0
+        self.gear = 1
         self.angle = 220
 
     def reset_time(self):

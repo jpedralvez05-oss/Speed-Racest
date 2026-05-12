@@ -26,12 +26,14 @@ GAUGE_IMG = pygame.transform.scale(
 
 ZOOM = 2.5
 WIDTH = 1024
-HEIGHT =768
+HEIGHT = 768
 
 font = pygame.font.SysFont("Arial", 28)
 font_large = pygame.font.SysFont("Arial", 42, bold=True)
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Speed Racest")
+THUMBNAIL = pygame.transform.scale(pygame.image.load(
+    "app/img/Game Thumbnail.jpg").convert(), (WIDTH, HEIGHT))
 
 GEAR_DOWN_PATH = os.path.join('app/sounds', 'gear_down.mp3')
 GEAR_UP_PATH = os.path.join('app/sounds', 'gear_up.mp3')
